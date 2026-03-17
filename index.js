@@ -1,7 +1,6 @@
 // ╔══════════════════════════════════════════════════════════╗
 // ║     WhatsApp Bot - Layanan Kecamatan Medan Johor         ║
 // ║     Powered by Baileys + Node.js                         ║
-// ║     Author: Bot Pelayanan Digital                        ║
 // ╚══════════════════════════════════════════════════════════╝
 
 import makeWASocket, {
@@ -22,7 +21,6 @@ import {
 } from './store.js';
 import logger from './logger.js';
 
-// ─── Config ───────────────────────────────────────────────
 const CONFIG = {
   AUTH_DIR: './auth_info_baileys',
   RECONNECT_DELAY: 5000,
@@ -41,7 +39,6 @@ let reconnectCount = 0;
 let feedbackInterval = null;
 let livechatReplyInterval = null;
 
-// ─── Reset Auth ───────────────────────────────────────────
 function resetAuth() {
   try {
     if (fs.existsSync(CONFIG.AUTH_DIR)) {
@@ -53,7 +50,6 @@ function resetAuth() {
   }
 }
 
-// ─── Workers ──────────────────────────────────────────────
 function startFeedbackWorker(sock) {
   if (feedbackInterval) clearInterval(feedbackInterval);
   feedbackInterval = setInterval(async () => {
@@ -124,6 +120,50 @@ function startLivechatReplyWorker(sock) {
   logger.info('LIVECHAT', 'LiveChat reply worker aktif');
 }
 
+// ─── Pairing Code Request ─────────────────────────────────
+// Dipanggil dari connection.update saat status = 'connecting'
+// atau fallback polling — tidak bergantung pada sock.ws.once('open')
+async function requestPairingCode(sock, phoneNumber, attempt = 1) {
+  const MAX = 5;
+  try {
+    logger.info('PAIR', `Meminta pairing code (percobaan ${attempt}/${MAX})...`);
+    const code = await sock.requestPairingCode(phoneNumber);
+    if (!code) throw new Error('Code kosong dari server');
+
+    const fmt = code.match(/.{1,4}/g)?.join('-') || code;
+
+    logger.divider();
+    console.log('\n');
+    console.log('  +----------------------------------+');
+    console.log('  |     PAIRING CODE HALLO JOHOR     |');
+    console.log('  |                                  |');
+    console.log(`  |       >>  ${fmt}  <<        |`);
+    console.log('  |                                  |');
+    console.log('  +----------------------------------+');
+    console.log('\n');
+    logger.info('PAIR', 'Cara pairing:');
+    logger.info('PAIR', '  1. Buka WhatsApp di HP');
+    logger.info('PAIR', '  2. Tap titik tiga > Perangkat Tertaut');
+    logger.info('PAIR', '  3. Tap "Tautkan Perangkat"');
+    logger.info('PAIR', `  4. Masukkan kode: ${fmt}`);
+    logger.divider();
+    return true;
+  } catch (err) {
+    logger.error('PAIR', `Gagal percobaan ${attempt}`, err.message);
+    if (attempt < MAX) {
+      logger.warn('PAIR', `Retry dalam 5 detik...`);
+      await delay(5000);
+      return requestPairingCode(sock, phoneNumber, attempt + 1);
+    } else {
+      logger.error('PAIR', 'Semua percobaan gagal. Reset auth & restart...');
+      await delay(3000);
+      resetAuth();
+      setTimeout(() => startBot(), 1000);
+      return false;
+    }
+  }
+}
+
 // ─── Start Bot ───────────────────────────────────────────
 async function startBot() {
   logger.banner();
@@ -153,84 +193,50 @@ async function startBot() {
     getMessage: async () => ({ conversation: 'hello' }),
   });
 
-  // ─── Pairing: jalankan setelah socket siap ────────────
-  let pairingDone = false;
+  // ─── Siapkan nomor telepon untuk pairing ──────────────
+  let phoneNumber = null;
+  let pairingRequested = false;
 
   if (!sock.authState.creds.registered) {
     logger.divider();
     logger.info('PAIR', 'Akun belum terdaftar — mempersiapkan pairing...');
 
-    // Ambil nomor telepon
-    let phoneNumber;
     if (process.env.PHONE_NUMBER) {
-      phoneNumber = process.env.PHONE_NUMBER;
-      logger.info('PAIR', `Nomor dari env: ${phoneNumber}`);
+      phoneNumber = process.env.PHONE_NUMBER.replace(/[^0-9]/g, '');
+      if (!phoneNumber.startsWith('62')) phoneNumber = '62' + phoneNumber.replace(/^0/, '');
+      logger.info('PAIR', `Nomor dari env: +${phoneNumber}`);
     } else {
       phoneNumber = await question('\n Masukkan nomor WA (format: 628xxxxxxxxxx): ');
+      phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+      if (!phoneNumber.startsWith('62')) phoneNumber = '62' + phoneNumber.replace(/^0/, '');
     }
-    phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
-    if (!phoneNumber.startsWith('62')) phoneNumber = '62' + phoneNumber.replace(/^0/, '');
-    logger.info('PAIR', `Nomor: +${phoneNumber}`);
 
-    // Tunggu WebSocket frame pertama (tanda socket sudah bisa kirim),
-    // lalu request pairing code
-    sock.ws.once('open', async () => {
-      // Beri waktu handshake selesai
-      await delay(3000);
-
-      if (pairingDone) return;
-
-      let attempt = 0;
-      const maxAttempts = 5;
-
-      while (attempt < maxAttempts) {
-        attempt++;
-        try {
-          logger.info('PAIR', `Meminta pairing code (percobaan ${attempt}/${maxAttempts})...`);
-          const code = await sock.requestPairingCode(phoneNumber);
-          if (!code) throw new Error('Code kosong');
-
-          const fmt = code.match(/.{1,4}/g)?.join('-') || code;
-          pairingDone = true;
-
-          logger.divider();
-          console.log('\n');
-          console.log('  +----------------------------------+');
-          console.log('  |   PAIRING CODE HALLO JOHOR      |');
-          console.log('  |                                  |');
-          console.log(`  |     >>  ${fmt}  <<          |`);
-          console.log('  |                                  |');
-          console.log('  +----------------------------------+');
-          console.log('\n');
-          logger.info('PAIR', 'Cara pairing:');
-          logger.info('PAIR', '  1. Buka WhatsApp di HP');
-          logger.info('PAIR', '  2. Tap titik tiga > Perangkat Tertaut');
-          logger.info('PAIR', '  3. Tap "Tautkan Perangkat"');
-          logger.info('PAIR', `  4. Masukkan kode: ${fmt}`);
-          logger.divider();
-          break;
-        } catch (err) {
-          logger.error('PAIR', `Gagal percobaan ${attempt}`, err.message);
-          if (attempt < maxAttempts) {
-            logger.warn('PAIR', `Retry dalam 5 detik...`);
-            await delay(5000);
-          } else {
-            logger.error('PAIR', 'Semua percobaan gagal. Reset auth & restart...');
-            await delay(3000);
-            resetAuth();
-            setTimeout(() => startBot(), 1000);
-          }
-        }
-      }
-    });
+    logger.info('PAIR', `Nomor yang akan digunakan: +${phoneNumber}`);
+    logger.info('PAIR', 'Menunggu koneksi ke server WhatsApp...');
   }
 
   // ─── Connection Events ────────────────────────────────
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      // Jika QR muncul (seharusnya tidak karena pairing code), abaikan
+      logger.warn('PAIR', 'QR code muncul — menggunakan pairing code, abaikan QR');
+    }
 
     if (connection === 'connecting') {
-      logger.state('CONNECTING', 'Menghubungkan ke WhatsApp...');
+      logger.state('CONNECTING', 'Menghubungkan ke server WhatsApp...');
+
+      // ── Trigger pairing saat koneksi sedang dibangun ──
+      // Ini lebih reliable daripada sock.ws.once('open')
+      if (phoneNumber && !pairingRequested && !sock.authState.creds.registered) {
+        pairingRequested = true;
+        // Tunggu sedikit agar handshake WS selesai
+        await delay(4000);
+        if (!sock.authState.creds.registered) {
+          await requestPairingCode(sock, phoneNumber);
+        }
+      }
     }
 
     if (connection === 'open') {
@@ -298,11 +304,12 @@ async function startBot() {
 
 // ─── Process handlers ─────────────────────────────────────
 process.on('uncaughtException', e => { logger.error('SYSTEM', 'Uncaught', e.message); console.error(e); });
-process.on('unhandledRejection', e => { logger.error('SYSTEM', 'Unhandled', e?.message || String(e)); });
-process.on('SIGINT',  () => { logger.warn('SYSTEM', 'SIGINT — berhenti'); process.exit(0); });
-process.on('SIGTERM', () => { logger.warn('SYSTEM', 'SIGTERM — berhenti'); process.exit(0); });
+process.on('unhandledRejection', e => { logger.error('SYSTEM', 'Unhandled Rejection', e?.message || String(e)); });
+process.on('SIGINT', () => { logger.warn('SYSTEM', 'SIGINT — bot berhenti'); process.exit(0); });
+process.on('SIGTERM', () => { logger.warn('SYSTEM', 'SIGTERM — bot berhenti'); process.exit(0); });
 
 startBot().catch(e => {
   logger.error('BOOT', 'Gagal start', e.message);
+  console.error(e);
   process.exit(1);
 });
