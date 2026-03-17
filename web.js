@@ -1016,35 +1016,33 @@ evtSource.addEventListener('livechat_new', (e) => {
 
 function showAddGroupModal() {
   document.getElementById('modal-title').textContent = 'Tambah Grup WhatsApp';
-  document.getElementById('modal-body').innerHTML = `
-    <div class="form-group">
-      <label>Nama Grup</label>
-      <input class="form-input" id="ag-name" placeholder="Contoh: Grup Laporan Sampah Liar" autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label>Group ID WhatsApp</label>
-      <input class="form-input" id="ag-id" placeholder="Contoh: 6281234567890-1234567890@g.us" autocomplete="off">
-      <div class="form-hint">Group ID bisa ditemukan di log bot saat perintah applylaporan dijalankan di dalam grup.</div>
-    </div>
-    <div id="ag-status" class="form-status"></div>
-    <button class="btn-primary" onclick="submitAddGroup()">Daftarkan Grup</button>
-  `;
+  document.getElementById('modal-body').innerHTML =
+    '<div class="form-group">'
+    + '<label>Nama Grup</label>'
+    + '<input class="form-input" id="ag-name" placeholder="Contoh: Grup Laporan Sampah Liar" autocomplete="off">'
+    + '</div>'
+    + '<div class="form-group">'
+    + '<label>Group ID WhatsApp</label>'
+    + '<input class="form-input" id="ag-id" placeholder="Contoh: 6281234567890-1234567890@g.us" autocomplete="off">'
+    + '<div class="form-hint">Group ID bisa ditemukan di log bot saat perintah applylaporan dijalankan di dalam grup.</div>'
+    + '</div>'
+    + '<div id="ag-status" class="form-status"></div>'
+    + '<button class="btn-primary" onclick="submitAddGroup()">Daftarkan Grup</button>';
   document.getElementById('modal-overlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('ag-name') && document.getElementById('ag-name').focus(), 120);
+  setTimeout(function(){ var el = document.getElementById('ag-name'); if(el) el.focus(); }, 120);
 }
 
 async function submitAddGroup() {
-  const name = document.getElementById('ag-name').value.trim();
-  const id   = document.getElementById('ag-id').value.trim();
-  const st   = document.getElementById('ag-status');
+  var name = document.getElementById('ag-name').value.trim();
+  var id   = document.getElementById('ag-id').value.trim();
+  var st   = document.getElementById('ag-status');
   if (!name || !id) { st.textContent = 'Nama dan Group ID wajib diisi.'; st.className = 'form-status err'; return; }
   try {
-    const res = await fetch('/api/group/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId: id, groupName: name}) });
-    const json = await res.json();
+    var res = await fetch('/api/group/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId: id, groupName: name}) });
+    var json = await res.json();
     if (json.ok) {
       st.textContent = 'Grup berhasil ditambahkan!'; st.className = 'form-status ok';
-      document.getElementById('grup-count').textContent = (parseInt(document.getElementById('grup-count').textContent)||0) + 1 + ' grup';
-      setTimeout(() => { closeModalDirect(); location.reload(); }, 1200);
+      setTimeout(function(){ closeModalDirect(); location.reload(); }, 1200);
     } else { st.textContent = json.error || 'Gagal menambahkan grup'; st.className = 'form-status err'; }
   } catch(e) { st.textContent = e.message; st.className = 'form-status err'; }
 }
@@ -1052,25 +1050,25 @@ async function submitAddGroup() {
 async function deleteGroup(groupId, groupName) {
   if (!confirm('Hapus grup "' + groupName + '" dari daftar penerima laporan?\n\nLaporan tidak akan lagi dikirim ke grup ini.')) return;
   try {
-    const res = await fetch('/api/group/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId}) });
-    const json = await res.json();
+    var res = await fetch('/api/group/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId: groupId}) });
+    var json = await res.json();
     if (json.ok) {
       showToast('Grup "' + esc(groupName) + '" berhasil dihapus', '');
-      setTimeout(() => location.reload(), 900);
+      setTimeout(function(){ location.reload(); }, 900);
     } else { alert('Gagal: ' + (json.error || 'Terjadi kesalahan')); }
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-const ALL_KATEGORI_JS = ['Sampah Liar','Gangguan Ketertiban','Lampu Jalan Mati','Drainase Tersumbat','Administrasi Pelayanan','Bangunan Liar','Lainnya'];
+var ALL_KATEGORI_JS = ['Sampah Liar','Gangguan Ketertiban','Lampu Jalan Mati','Drainase Tersumbat','Administrasi Pelayanan','Bangunan Liar','Lainnya'];
 
 function editGroupKategori(jsonStr) {
-  const g = JSON.parse(jsonStr);
-  const assigned = Array.isArray(g.assigned) ? g.assigned : [];
-  document.getElementById('modal-title').textContent = 'Filter Kategori — ' + esc(g.name);
-  let checkboxes = '';
-  ALL_KATEGORI_JS.forEach(k => {
-    const safeId = 'kc-' + k.replace(/[^a-zA-Z0-9]/g,'_');
-    const checked = assigned.includes(k);
+  var g = JSON.parse(jsonStr);
+  var assigned = Array.isArray(g.assigned) ? g.assigned : [];
+  document.getElementById('modal-title').textContent = 'Filter Kategori \u2014 ' + esc(g.name);
+  var checkboxes = '';
+  ALL_KATEGORI_JS.forEach(function(k) {
+    var safeId = 'kc-' + k.replace(/[^a-zA-Z0-9]/g,'_');
+    var checked = assigned.indexOf(k) !== -1;
     checkboxes += '<div class="kat-check-item ' + (checked ? 'selected' : '') + '" onclick="toggleKatCheck(this)">'
       + '<input type="checkbox" id="' + safeId + '" value="' + esc(k) + '" ' + (checked ? 'checked' : '') + '>'
       + '<label for="' + safeId + '">' + esc(k) + '</label>'
@@ -1081,29 +1079,29 @@ function editGroupKategori(jsonStr) {
     + '<div class="kat-check-grid">' + checkboxes + '</div>'
     + '<div id="gk-status" class="form-status" style="margin-top:14px"></div>'
     + '<button class="btn-primary" style="margin-top:14px" onclick="submitGroupKategori(\'' + g.id.replace(/'/g,"\\'") + '\')">Simpan Filter</button>'
-    + '<button class="btn-danger" onclick="submitGroupKategori(\'' + g.id.replace(/'/g,"\\'") + '\', true)">Reset — Terima Semua Kategori</button>';
+    + '<button class="btn-danger" onclick="submitGroupKategori(\'' + g.id.replace(/'/g,"\\'") + '\', true)">Reset \u2014 Terima Semua Kategori</button>';
   document.getElementById('modal-overlay').style.display = 'flex';
 }
 
 function toggleKatCheck(el) {
   el.classList.toggle('selected');
-  const cb = el.querySelector('input[type=checkbox]');
+  var cb = el.querySelector('input[type=checkbox]');
   if (cb) cb.checked = el.classList.contains('selected');
 }
 
 async function submitGroupKategori(groupId, reset) {
-  const st = document.getElementById('gk-status');
-  const kategoriList = [];
+  var st = document.getElementById('gk-status');
+  var kategoriList = [];
   if (!reset) {
-    document.querySelectorAll('.kat-check-item input[type=checkbox]:checked').forEach(cb => kategoriList.push(cb.value));
+    document.querySelectorAll('.kat-check-item input[type=checkbox]:checked').forEach(function(cb){ kategoriList.push(cb.value); });
   }
   try {
-    const res = await fetch('/api/group/kategori', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId, kategoriList}) });
-    const json = await res.json();
+    var res = await fetch('/api/group/kategori', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({groupId: groupId, kategoriList: kategoriList}) });
+    var json = await res.json();
     if (json.ok) {
       st.textContent = reset ? 'Filter direset. Grup akan menerima semua kategori.' : 'Filter kategori berhasil disimpan!';
       st.className = 'form-status ok';
-      setTimeout(() => { closeModalDirect(); location.reload(); }, 1300);
+      setTimeout(function(){ closeModalDirect(); location.reload(); }, 1300);
     } else { st.textContent = json.error || 'Gagal menyimpan'; st.className = 'form-status err'; }
   } catch(e) { st.textContent = e.message; st.className = 'form-status err'; }
 }
@@ -1113,21 +1111,21 @@ async function submitGroupKategori(groupId, reset) {
 // ══════════════════════════════════════════════
 
 async function deleteLaporan(id, btn) {
-  const noLaporan = '#' + String(id).padStart(4,'0');
+  var noLaporan = '#' + String(id).padStart(4,'0');
   if (!confirm('Hapus laporan ' + noLaporan + '?\n\nTindakan ini tidak dapat dibatalkan.')) return;
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    const res = await fetch('/api/laporan/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id}) });
-    const json = await res.json();
+    var res = await fetch('/api/laporan/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id}) });
+    var json = await res.json();
     if (json.ok) {
-      const row = btn.closest('tr');
+      var row = btn.closest('tr');
       row.style.transition = 'opacity .3s';
       row.style.opacity = '0';
-      setTimeout(() => row.remove(), 320);
-      const cnt = document.getElementById('row-count');
+      setTimeout(function(){ row.remove(); }, 320);
+      var cnt = document.getElementById('row-count');
       if (cnt) cnt.textContent = Math.max(0, (parseInt(cnt.textContent) || 0) - 1);
-      const scv = document.querySelector('#sec-overview .sc-val');
+      var scv = document.querySelector('#sec-overview .sc-val');
       if (scv) scv.textContent = Math.max(0, (parseInt(scv.textContent) || 0) - 1);
       showToast('Laporan ' + noLaporan + ' berhasil dihapus', '');
     } else { btn.disabled = false; btn.textContent = ''; alert('Gagal: ' + (json.error || '')); }
